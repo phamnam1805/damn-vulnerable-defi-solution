@@ -66,6 +66,10 @@ describe('[Challenge] The rewarder', function () {
 
     it('Exploit', async function () {
         /** CODE YOUR EXPLOIT HERE */
+        const TheRewarderSolution = await ethers.getContractFactory("TheRewarderSolution", attacker);
+        this.solution = await TheRewarderSolution.deploy(this.rewarderPool.address, this.flashLoanPool.address, this.rewardToken.address, this.liquidityToken.address);
+        await ethers.provider.send("evm_increaseTime", [5 * 24 * 60 * 60]); // 5 days
+        await this.solution.attack();
     });
 
     after(async function () {
@@ -83,7 +87,7 @@ describe('[Challenge] The rewarder', function () {
             
             // The difference between current and previous rewards balance should be lower than 0.01 tokens
             let delta = rewards.sub(ethers.utils.parseEther('25'));
-            expect(delta).to.be.lt(ethers.utils.parseUnits('1', 16))
+            expect(delta).to.be.lt(ethers.utils.parseUnits('1', 16));
         }
         
         // Rewards must have been issued to the attacker account
